@@ -5,7 +5,7 @@ OpenAI-compatible proxy for Cursor CLI. Expose Cursor models on localhost so any
 ## Prerequisites
 
 - **Node.js** 18+
-- **Cursor CLI** (`agent`). Install and log in:
+- **Cursor CLI** (`agent`). This project is developed and tested with `agent` version **2026.02.27-e7d2ef6**. Install and log in:
 
   ```bash
   curl https://cursor.com/install -fsS | bash
@@ -107,6 +107,7 @@ console.log(completion.choices[0].message.content);
 | GET | `/health` | Server and config info |
 | GET | `/v1/models` | List Cursor models (from `agent --list-models`) |
 | POST | `/v1/chat/completions` | Chat completion (OpenAI shape; supports `stream: true`) |
+| POST | `/v1/messages` | Anthropic Messages API (used by Claude Code; supports `stream: true`) |
 
 ## Environment variables
 
