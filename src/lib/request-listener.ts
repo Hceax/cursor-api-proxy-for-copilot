@@ -9,6 +9,7 @@ import { handleChatCompletions } from "./handlers/chat-completions.js";
 import { handleAnthropicMessages } from "./handlers/anthropic-messages.js";
 import { extractBearerToken, json, readBody } from "./http.js";
 import { appendSessionLine, logIncoming } from "./request-log.js";
+import { SessionManager } from "./session-manager.js";
 
 export type BridgeServerOptions = {
   version: string;
@@ -19,6 +20,7 @@ export function createRequestListener(opts: BridgeServerOptions) {
   const { config } = opts;
   const modelCacheRef: { current?: ModelCache } = { current: undefined };
   const lastRequestedModelRef: { current?: string } = {};
+  const sessionManager = new SessionManager(config.sessionTtlMs);
 
   return async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const protocol =
@@ -68,7 +70,7 @@ export function createRequestListener(opts: BridgeServerOptions) {
         await handleChatCompletions(
           req,
           res,
-          { config, lastRequestedModelRef },
+          { config, lastRequestedModelRef, sessionManager },
           raw,
           method,
           pathname,

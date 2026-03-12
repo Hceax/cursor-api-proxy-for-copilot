@@ -46,6 +46,10 @@ export function startBridgeServer(
     console.log(
       `- verbose traffic: ${config.verbose ? "yes (CURSOR_BRIDGE_VERBOSE=true)" : "no"}`,
     );
+    console.log(
+      `- session TTL: ${Math.round(config.sessionTtlMs / 60000)}min`,
+    );
+    console.log(`- max history turns: ${config.maxHistoryTurns}`);
   });
 
   return server;

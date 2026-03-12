@@ -83,13 +83,13 @@ export async function handleAnthropicMessages(
   const headerWs = req.headers["x-cursor-workspace"];
   const { workspaceDir, tempDir } = resolveWorkspace(config, headerWs, body.messages);
 
-  const cmdArgs = buildAgentCmdArgs(
+  const cmdArgs = buildAgentCmdArgs({
     config,
     workspaceDir,
-    cursorModel,
+    model: cursorModel,
     prompt,
-    !!body.stream,
-  );
+    stream: !!body.stream,
+  });
 
   const msgId = `msg_${randomUUID().replace(/-/g, "")}`;
 

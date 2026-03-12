@@ -62,3 +62,28 @@ export function buildPromptFromMessages(messages: any[]): string {
   const transcript = convo.join("\n\n");
   return system + transcript + "\n\nAssistant:";
 }
+
+/**
+ * Build a condensed prompt for the first message of a new session.
+ * Strips Copilot system prompts and limits history to avoid token waste.
+ */
+export function buildNewSessionPrompt(
+  messages: any[],
+  maxTurns: number,
+): string {
+  const convo: string[] = [];
+
+  for (const m of messages || []) {
+    const role = m?.role;
+    if (role === "system" || role === "developer") continue;
+    const text = messageContentToText(m?.content);
+    if (!text) continue;
+
+    if (role === "user") convo.push(`User: ${text}`);
+    else if (role === "assistant") convo.push(`Assistant: ${text}`);
+    else if (role === "tool" || role === "function") convo.push(`Tool: ${text}`);
+  }
+
+  const limited = convo.slice(-(maxTurns * 2));
+  return limited.join("\n\n");
+}

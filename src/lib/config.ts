@@ -24,6 +24,10 @@ export type BridgeConfig = {
   chatOnlyWorkspace: boolean;
   /** When true, print full request/response content to stdout for each completion. */
   verbose: boolean;
+  /** Session idle timeout in milliseconds. Default: 30 minutes. */
+  sessionTtlMs: number;
+  /** Max history turns to include for the first message of a new session. */
+  maxHistoryTurns: number;
 };
 
 function envBool(name: string, defaultValue: boolean): boolean {
@@ -132,5 +136,7 @@ export function loadBridgeConfig(): BridgeConfig {
     sessionsLogPath: getSessionsLogPath(),
     chatOnlyWorkspace: getChatOnlyWorkspace(),
     verbose: envBool("CURSOR_BRIDGE_VERBOSE", false),
+    sessionTtlMs: envNumber("CURSOR_BRIDGE_SESSION_TTL_MS", 30 * 60 * 1000),
+    maxHistoryTurns: envNumber("CURSOR_BRIDGE_MAX_HISTORY_TURNS", 10),
   };
 }

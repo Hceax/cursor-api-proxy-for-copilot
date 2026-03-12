@@ -8,7 +8,7 @@ import { createStreamParser } from "../cli-stream-parser.js";
 import { json, writeSseHeaders } from "../http.js";
 import { resolveToCursorModel } from "../model-map.js";
 import {
-  buildPromptFromMessages,
+  buildNewSessionPrompt,
   normalizeModelId,
   type OpenAiChatCompletionRequest,
 } from "../openai.js";
@@ -19,11 +19,13 @@ import {
   type TrafficMessage,
 } from "../request-log.js";
 import { resolveModel } from "../resolve-model.js";
+import type { SessionManager } from "../session-manager.js";
 import { resolveWorkspace } from "../workspace.js";
 
 export type ChatCompletionsCtx = {
   config: BridgeConfig;
   lastRequestedModelRef: { current?: string };
+  sessionManager: SessionManager;
 };
 
 export async function handleChatCompletions(
@@ -35,12 +37,11 @@ export async function handleChatCompletions(
   pathname: string,
   remoteAddress: string,
 ): Promise<void> {
-  const { config, lastRequestedModelRef } = ctx;
+  const { config, lastRequestedModelRef, sessionManager } = ctx;
   const body = JSON.parse(rawBody || "{}") as OpenAiChatCompletionRequest;
   const requested = normalizeModelId(body.model);
   const model = resolveModel(requested, lastRequestedModelRef, config);
   const cursorModel = resolveToCursorModel(model) ?? model;
-  const prompt = buildPromptFromMessages(body.messages ?? []);
 
   const trafficMessages: TrafficMessage[] = (body.messages ?? []).map(
     (m: any) => {
@@ -63,21 +64,36 @@ export async function handleChatCompletions(
     !!body.stream,
   );
 
-  const hasTools = Array.isArray(body.tools) && body.tools.length > 0
-    || Array.isArray(body.functions) && body.functions.length > 0;
-  const modeOverride = hasTools ? "agent" as const : undefined;
+  const hasTools =
+    (Array.isArray(body.tools) && body.tools.length > 0) ||
+    (Array.isArray(body.functions) && body.functions.length > 0);
+  const modeOverride = hasTools ? ("agent" as const) : undefined;
 
   const headerWs = req.headers["x-cursor-workspace"];
-  const { workspaceDir, tempDir } = resolveWorkspace(config, headerWs, body.messages);
+  const { workspaceDir, tempDir } = resolveWorkspace(
+    config,
+    headerWs,
+    body.messages,
+  );
 
-  const cmdArgs = buildAgentCmdArgs(
+  const session = await sessionManager.processRequest(
+    config,
+    body.messages ?? [],
+  );
+
+  const prompt = session.isNew
+    ? buildNewSessionPrompt(body.messages ?? [], config.maxHistoryTurns)
+    : session.lastUserMessage;
+
+  const cmdArgs = buildAgentCmdArgs({
     config,
     workspaceDir,
-    cursorModel,
+    model: cursorModel,
     prompt,
-    !!body.stream,
+    stream: !!body.stream,
     modeOverride,
-  );
+    chatId: session.chatId,
+  });
 
   const id = `chatcmpl_${randomUUID().replace(/-/g, "")}`;
   const created = Math.floor(Date.now() / 1000);
@@ -120,13 +136,7 @@ export async function handleChatCompletions(
         res.write("data: [DONE]\n\n");
       },
     );
-    runAgentStream(
-      config,
-      workspaceDir,
-      cmdArgs,
-      parseLine,
-      tempDir,
-    )
+    runAgentStream(config, workspaceDir, cmdArgs, parseLine, tempDir)
       .then(({ code, stderr: stderrOut }) => {
         if (code !== 0) {
           logAgentError(
@@ -141,7 +151,10 @@ export async function handleChatCompletions(
         res.end();
       })
       .catch((err) => {
-        console.error(`[${new Date().toISOString()}] Agent stream error:`, err);
+        console.error(
+          `[${new Date().toISOString()}] Agent stream error:`,
+          err,
+        );
         res.end();
       });
     return;

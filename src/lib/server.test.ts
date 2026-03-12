@@ -52,6 +52,8 @@ function createTestConfig(overrides: Partial<BridgeConfig> = {}): BridgeConfig {
     timeoutMs: 30_000,
     sessionsLogPath: tmpLogPath,
     chatOnlyWorkspace: true,
+    sessionTtlMs: 1800000,
+    maxHistoryTurns: 10,
     verbose: false,
     ...overrides,
   };
