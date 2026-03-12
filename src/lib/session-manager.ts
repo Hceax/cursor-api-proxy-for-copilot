@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
-
 import type { BridgeConfig } from "./config.js";
+import { extractCopilotUserRequest, messageContentToText } from "./openai.js";
 import { run } from "./process.js";
 
 export interface NormalizedMessage {
@@ -10,8 +9,7 @@ export interface NormalizedMessage {
 
 interface Session {
   chatId: string;
-  fingerprint: string;
-  messageCount: number;
+  messages: NormalizedMessage[];
   lastActivity: number;
 }
 
@@ -20,6 +18,8 @@ export interface SessionResult {
   isNew: boolean;
   lastUserMessage: string;
 }
+
+const MAX_SESSIONS = 50;
 
 export class SessionManager {
   private sessions = new Map<string, Session>();
@@ -39,25 +39,44 @@ export class SessionManager {
       throw new Error("No user message found in request");
     }
 
-    const currentFp = fingerprint(messages);
-    const match = this.findContinuation(messages);
+    const match = this.findSession(messages);
 
     if (match) {
-      match.messageCount = messages.length;
-      match.fingerprint = currentFp;
-      match.lastActivity = Date.now();
-      console.log(
-        `[${ts()}] Session ${match.chatId.slice(0, 8)}...: ` +
-          `resume (${messages.length} msgs, ${this.sessions.size} active)`,
-      );
-      return { chatId: match.chatId, isNew: false, lastUserMessage: lastUser };
+      const prefixLen = commonPrefixLen(messages, match.messages);
+      const isCheckpoint = prefixLen < match.messages.length;
+
+      if (isCheckpoint) {
+        this.sessions.delete(match.chatId);
+        console.log(
+          `[${ts()}] Session ${match.chatId.slice(0, 8)}...: ` +
+            `checkpoint detected (prefix ${prefixLen}/${match.messages.length}), ` +
+            `creating new session`,
+        );
+      } else {
+        const kind =
+          messages.length > match.messages.length ? "resume" : "retry";
+        match.messages = messages;
+        match.lastActivity = Date.now();
+        console.log(
+          `[${ts()}] Session ${match.chatId.slice(0, 8)}...: ` +
+            `${kind} (${messages.length} msgs, ${this.sessions.size} active)`,
+        );
+        return {
+          chatId: match.chatId,
+          isNew: false,
+          lastUserMessage: lastUser,
+        };
+      }
+    }
+
+    if (this.sessions.size >= MAX_SESSIONS) {
+      this.evictOldest();
     }
 
     const chatId = await createCliChat(config);
     this.sessions.set(chatId, {
       chatId,
-      fingerprint: currentFp,
-      messageCount: messages.length,
+      messages,
       lastActivity: Date.now(),
     });
     console.log(
@@ -71,13 +90,34 @@ export class SessionManager {
     return this.sessions.size;
   }
 
-  private findContinuation(incoming: NormalizedMessage[]): Session | null {
+  private findSession(incoming: NormalizedMessage[]): Session | null {
+    let bestSession: Session | null = null;
+    let bestMatchLen = 0;
+
     for (const session of this.sessions.values()) {
-      if (incoming.length <= session.messageCount) continue;
-      const prefixFp = fingerprint(incoming.slice(0, session.messageCount));
-      if (prefixFp === session.fingerprint) return session;
+      const matchLen = commonPrefixLen(incoming, session.messages);
+      if (matchLen > bestMatchLen) {
+        bestMatchLen = matchLen;
+        bestSession = session;
+      }
     }
-    return null;
+
+    return bestMatchLen >= 1 ? bestSession : null;
+  }
+
+  private evictOldest() {
+    let oldest: string | null = null;
+    let oldestTime = Infinity;
+    for (const [id, session] of this.sessions) {
+      if (session.lastActivity < oldestTime) {
+        oldestTime = session.lastActivity;
+        oldest = id;
+      }
+    }
+    if (oldest) {
+      this.sessions.delete(oldest);
+      console.log(`[${ts()}] Session evicted (limit ${MAX_SESSIONS})`);
+    }
   }
 
   private cleanup() {
@@ -99,6 +139,7 @@ export class SessionManager {
   destroy() {
     clearInterval(this.cleanupTimer);
     this.sessions.clear();
+    console.log(`[${ts()}] SessionManager destroyed`);
   }
 }
 
@@ -106,15 +147,7 @@ function normalizeMessages(raw: any[]): NormalizedMessage[] {
   const result: NormalizedMessage[] = [];
   for (const m of raw ?? []) {
     if (m?.role === "system" || m?.role === "developer") continue;
-    const content =
-      typeof m?.content === "string"
-        ? m.content
-        : Array.isArray(m?.content)
-          ? (m.content as any[])
-              .filter((p: any) => p?.type === "text")
-              .map((p: any) => p.text ?? "")
-              .join("")
-          : "";
+    const content = messageContentToText(m?.content);
     if (content) result.push({ role: m.role, content });
   }
   return result;
@@ -122,17 +155,22 @@ function normalizeMessages(raw: any[]): NormalizedMessage[] {
 
 function findLastUserMessage(messages: NormalizedMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") return messages[i].content;
+    if (messages[i].role === "user") {
+      return extractCopilotUserRequest(messages[i].content);
+    }
   }
   return null;
 }
 
-function fingerprint(messages: NormalizedMessage[]): string {
-  const h = createHash("sha256");
-  for (const m of messages) {
-    h.update(`${m.role}:${m.content}\n`);
+export function commonPrefixLen(
+  a: NormalizedMessage[],
+  b: NormalizedMessage[],
+): number {
+  const minLen = Math.min(a.length, b.length);
+  for (let i = 0; i < minLen; i++) {
+    if (a[i].role !== b[i].role || a[i].content !== b[i].content) return i;
   }
-  return h.digest("hex").slice(0, 32);
+  return minLen;
 }
 
 async function createCliChat(config: BridgeConfig): Promise<string> {
