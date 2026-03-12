@@ -2,6 +2,8 @@ export type OpenAiChatCompletionRequest = {
   model?: string;
   messages: any[];
   stream?: boolean;
+  tools?: any[];
+  functions?: any[];
 };
 
 export function normalizeModelId(raw: string | undefined): string | undefined {

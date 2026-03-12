@@ -63,8 +63,12 @@ export async function handleChatCompletions(
     !!body.stream,
   );
 
+  const hasTools = Array.isArray(body.tools) && body.tools.length > 0
+    || Array.isArray(body.functions) && body.functions.length > 0;
+  const modeOverride = hasTools ? "agent" as const : undefined;
+
   const headerWs = req.headers["x-cursor-workspace"];
-  const { workspaceDir, tempDir } = resolveWorkspace(config, headerWs);
+  const { workspaceDir, tempDir } = resolveWorkspace(config, headerWs, body.messages);
 
   const cmdArgs = buildAgentCmdArgs(
     config,
@@ -72,6 +76,7 @@ export async function handleChatCompletions(
     cursorModel,
     prompt,
     !!body.stream,
+    modeOverride,
   );
 
   const id = `chatcmpl_${randomUUID().replace(/-/g, "")}`;

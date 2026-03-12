@@ -1,4 +1,4 @@
-import type { BridgeConfig } from "./config.js";
+import type { BridgeConfig, CursorExecutionMode } from "./config.js";
 
 /**
  * Build CLI arguments for running the Cursor agent.
@@ -9,12 +9,16 @@ export function buildAgentCmdArgs(
   model: string,
   prompt: string,
   stream: boolean,
+  modeOverride?: CursorExecutionMode,
 ): string[] {
+  const mode = modeOverride ?? config.mode;
   const args = ["--print"];
   if (config.approveMcps) args.push("--approve-mcps");
-  if (config.force) args.push("--force");
-  if (config.chatOnlyWorkspace) args.push("--trust");
-  args.push("--mode", "ask");
+  if (config.force || mode === "agent") args.push("--force");
+  if (config.chatOnlyWorkspace || mode === "agent") args.push("--trust");
+  if (mode === "ask" || mode === "plan") {
+    args.push("--mode", mode);
+  }
   args.push("--workspace", workspaceDir);
   args.push("--model", model);
   if (stream) {

@@ -8,3 +8,6 @@ dist/
 *.ts.net.key
 # Session/request log (optional; path configurable via CURSOR_BRIDGE_SESSIONS_LOG)
 sessions.log
+# Environment artifacts
+Microsoft/
+pip/

@@ -81,7 +81,7 @@ export async function handleAnthropicMessages(
   );
 
   const headerWs = req.headers["x-cursor-workspace"];
-  const { workspaceDir, tempDir } = resolveWorkspace(config, headerWs);
+  const { workspaceDir, tempDir } = resolveWorkspace(config, headerWs, body.messages);
 
   const cmdArgs = buildAgentCmdArgs(
     config,
