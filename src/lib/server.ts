@@ -2,19 +2,15 @@ import * as fs from "node:fs";
 import * as http from "node:http";
 import * as https from "node:https";
 
-import type { BridgeConfig } from "./config.js";
+import type { BridgeServerOptions } from "./config.js";
 import { createRequestListener } from "./request-listener.js";
-
-export type BridgeServerOptions = {
-  version: string;
-  config: BridgeConfig;
-};
 
 export function startBridgeServer(
   opts: BridgeServerOptions,
 ): http.Server | https.Server {
   const { config } = opts;
-  const requestListener = createRequestListener(opts);
+  const { handler: requestListener, sessionManager } =
+    createRequestListener(opts);
 
   const useTls = Boolean(config.tlsCertPath && config.tlsKeyPath);
   let server: http.Server | https.Server;
@@ -51,6 +47,14 @@ export function startBridgeServer(
     );
     console.log(`- max history turns: ${config.maxHistoryTurns}`);
   });
+
+  const shutdown = () => {
+    console.log(`\n[${new Date().toISOString()}] Shutting down...`);
+    sessionManager.destroy();
+    server.close();
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 
   return server;
 }

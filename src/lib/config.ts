@@ -1,5 +1,7 @@
 import * as path from "node:path";
 
+import { normalizeModelId } from "./openai.js";
+
 export type CursorExecutionMode = "agent" | "ask" | "plan";
 
 export type BridgeConfig = {
@@ -30,6 +32,11 @@ export type BridgeConfig = {
   maxHistoryTurns: number;
 };
 
+export type BridgeServerOptions = {
+  version: string;
+  config: BridgeConfig;
+};
+
 function envBool(name: string, defaultValue: boolean): boolean {
   const raw = process.env[name];
   if (raw == null) return defaultValue;
@@ -50,14 +57,6 @@ function normalizeMode(raw: string | undefined): CursorExecutionMode {
   const m = (raw || "").trim().toLowerCase();
   if (m === "ask" || m === "plan" || m === "agent") return m;
   return "ask";
-}
-
-function normalizeModelId(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  const trimmed = raw.trim();
-  if (!trimmed) return undefined;
-  const parts = trimmed.split("/");
-  return parts[parts.length - 1] || undefined;
 }
 
 function getAgentBin(): string {

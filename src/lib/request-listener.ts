@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as http from "node:http";
 
-import type { BridgeConfig } from "./config.js";
+import type { BridgeServerOptions } from "./config.js";
 import type { ModelCache } from "./handlers/models.js";
 import { handleHealth } from "./handlers/health.js";
 import { handleModels } from "./handlers/models.js";
@@ -11,18 +11,23 @@ import { extractBearerToken, json, readBody } from "./http.js";
 import { appendSessionLine, logIncoming } from "./request-log.js";
 import { SessionManager } from "./session-manager.js";
 
-export type BridgeServerOptions = {
-  version: string;
-  config: BridgeConfig;
+export type RequestListenerResult = {
+  handler: (req: http.IncomingMessage, res: http.ServerResponse) => void;
+  sessionManager: SessionManager;
 };
 
-export function createRequestListener(opts: BridgeServerOptions) {
+export function createRequestListener(
+  opts: BridgeServerOptions,
+): RequestListenerResult {
   const { config } = opts;
   const modelCacheRef: { current?: ModelCache } = { current: undefined };
   const lastRequestedModelRef: { current?: string } = {};
   const sessionManager = new SessionManager(config.sessionTtlMs);
 
-  return async (req: http.IncomingMessage, res: http.ServerResponse) => {
+  const handler = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+  ) => {
     const protocol =
       config.tlsCertPath && config.tlsKeyPath ? "https" : "http";
     const url = new URL(
@@ -113,4 +118,6 @@ export function createRequestListener(opts: BridgeServerOptions) {
       });
     }
   };
+
+  return { handler, sessionManager };
 }
