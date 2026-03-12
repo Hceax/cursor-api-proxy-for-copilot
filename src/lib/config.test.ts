@@ -32,6 +32,10 @@ describe("loadBridgeConfig", () => {
     "CURSOR_BRIDGE_SESSIONS_LOG",
     "CURSOR_BRIDGE_TIMEOUT_MS",
     "CURSOR_BRIDGE_CHAT_ONLY_WORKSPACE",
+    "CURSOR_BRIDGE_VERBOSE",
+    "CURSOR_BRIDGE_SESSION_TTL_MS",
+    "CURSOR_BRIDGE_MAX_HISTORY_TURNS",
+    "CURSOR_BRIDGE_MODE",
     "HOME",
     "USERPROFILE",
   ];
@@ -130,5 +134,31 @@ describe("loadBridgeConfig", () => {
     expect(loadBridgeConfig().chatOnlyWorkspace).toBe(false);
     setEnv("CURSOR_BRIDGE_CHAT_ONLY_WORKSPACE", "0");
     expect(loadBridgeConfig().chatOnlyWorkspace).toBe(false);
+  });
+
+  it("parses CURSOR_BRIDGE_VERBOSE", () => {
+    expect(loadBridgeConfig().verbose).toBe(false);
+    setEnv("CURSOR_BRIDGE_VERBOSE", "true");
+    expect(loadBridgeConfig().verbose).toBe(true);
+  });
+
+  it("parses CURSOR_BRIDGE_SESSION_TTL_MS", () => {
+    expect(loadBridgeConfig().sessionTtlMs).toBe(1800000);
+    setEnv("CURSOR_BRIDGE_SESSION_TTL_MS", "60000");
+    expect(loadBridgeConfig().sessionTtlMs).toBe(60000);
+  });
+
+  it("parses CURSOR_BRIDGE_MAX_HISTORY_TURNS", () => {
+    expect(loadBridgeConfig().maxHistoryTurns).toBe(10);
+    setEnv("CURSOR_BRIDGE_MAX_HISTORY_TURNS", "5");
+    expect(loadBridgeConfig().maxHistoryTurns).toBe(5);
+  });
+
+  it("parses CURSOR_BRIDGE_MODE", () => {
+    expect(loadBridgeConfig().mode).toBe("ask");
+    setEnv("CURSOR_BRIDGE_MODE", "agent");
+    expect(loadBridgeConfig().mode).toBe("agent");
+    setEnv("CURSOR_BRIDGE_MODE", "plan");
+    expect(loadBridgeConfig().mode).toBe("plan");
   });
 });

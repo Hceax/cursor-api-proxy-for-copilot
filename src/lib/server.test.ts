@@ -11,13 +11,13 @@ vi.mock("./cursor-cli.js", () => ({
 }));
 
 vi.mock("./process.js", () => ({
-  run: vi.fn().mockResolvedValue({
-    code: 0,
-    stdout: "Hello from agent",
-    stderr: "",
+  run: vi.fn().mockImplementation((_cmd: string, args: string[]) => {
+    if (args[0] === "create-chat") {
+      return Promise.resolve({ code: 0, stdout: "test-chat-id\n", stderr: "" });
+    }
+    return Promise.resolve({ code: 0, stdout: "Hello from agent", stderr: "" });
   }),
   runStreaming: vi.fn().mockImplementation((_cmd, _args, opts) => {
-    // Simulate streaming response
     if (opts.onLine) {
       opts.onLine(
         JSON.stringify({
@@ -34,6 +34,9 @@ vi.mock("./process.js", () => ({
 vi.mock("./request-log.js", () => ({
   logIncoming: vi.fn(),
   appendSessionLine: vi.fn(),
+  logTrafficRequest: vi.fn(),
+  logTrafficResponse: vi.fn(),
+  logAgentError: vi.fn().mockReturnValue("mocked error"),
 }));
 
 const tmpLogPath = "/tmp/cursor-proxy-test-sessions.log";
